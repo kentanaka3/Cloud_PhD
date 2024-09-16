@@ -1,0 +1,74 @@
+# file: master.yml
+- name: Setup OGS (CRS) ADA Cloud environment
+  hosts: master
+  tasks:
+    - name: Create NVIDIA HPC SDK module file for Lmod
+      copy:
+        dest: /opt/modules/nvhpc/24.7
+        content: |
+          #%Module1.0
+          proc ModulesHelp { } {
+              puts stderr "This module loads NVIDIA HPC SDK 24.7"
+          }
+          module-whatis "Loads NVIDIA HPC SDK 24.7"
+
+          setenv NVHPC_HOME /opt/install/nvidia/hpc_sdk/24.7
+          prepend-path PATH /opt/install/nvidia/hpc_sdk/24.7/Linux_x86_64/24.7/compilers/bin
+          prepend-path LD_LIBRARY_PATH /opt/install/nvidia/hpc_sdk/24.7/Linux_x86_64/24.7/compilers/lib
+          prepend-path MANPATH /opt/install/nvidia/hpc_sdk/24.7/Linux_x86_64/24.7/comp
+      tags: dev
+
+    - name: Create symbolic link for the NVIDIA HPC SDK module file
+      file:
+        src: /opt/modules/nvhpc/24.7
+        dest: /opt/modules/nvhpc/default
+        state: link
+        force: yes
+      tags: dev
+
+    - name: Install Intel oneAPI Base Toolkit
+      become: yes
+      become_user: install
+      ansible.builtin.shell:
+        /bin/bash /opt/install/intel_oneAPI_base.sh -a --silent --eula accept
+      tags: dev
+
+    - name: Download Intel oneAPI HPC Toolkit
+      become: yes
+      become_user: install
+      ansible.builtin.get_url:
+        url: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/d4e49548-1492-45c9-b678-8268cb0f1b05/l_HPCKit_p_2024.2.0.635_offline.sh
+        dest: /opt/install/intel_oneAPI_HPC.sh
+        mode: '0644'
+      tags: dev
+
+    - name: Install Intel oneAPI HPC Toolkit
+      become: yes
+      become_user: install
+      ansible.builtin.shell:
+        /bin/bash /opt/install/intel_oneAPI_HPC.sh -a --silent --eula accept
+      tags: dev
+
+    - name: Download Intel oneAPI AI Tools
+      become: yes
+      become_user: install
+      ansible.builtin.get_url:
+        url: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/0414ef18-5b64-47f2-9b2e-ae94860272b9/l_AITools.2024.1.0.9.sh
+        dest: /opt/install/intel_oneAPI_AI.sh
+        mode: '0644'
+      tags: dev
+
+    - name: Install Intel oneAPI AI Tools
+      become: yes
+      become_user: install
+      ansible.builtin.shell:
+        /bin/bash /opt/install/intel_oneAPI_AI.sh -a --silent --eula accept
+      tags: dev
+
+  roles:
+    - { role: kernel, tags: ["kernel"] }
+    - { role: init, tags: ["init"] }
+    - { role: install, tags: ["install"] }
+    - { role: addUser, tags: ["addUser"] }
+    - { role: rmUser, tags: ["rmUser"] }
+    - { role: addKey, tags: ["addKey"] }

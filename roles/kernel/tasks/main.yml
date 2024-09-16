@@ -1,0 +1,54 @@
+# file: roles/kernel/tasks/main.yml
+# Enable the cockpit.socket service to activate the web console
+#- name: Enable and start cockpit.socket
+#  ansible.builtin.systemd:
+#    name: cockpit.socket
+#    enabled: yes
+#    state: started
+
+# Enable the CRB repository to install the latest kernel
+- name: Enable CRB repository
+  ansible.builtin.command:
+    cmd: dnf config-manager --set-enabled crb
+
+# Install the latest kernel
+- name: Refresh DNF metadata and upgrade packages
+  ansible.builtin.command: dnf upgrade --refresh -y
+
+# Clean up the DNF cache
+- name: Clean up DNF cache
+  ansible.builtin.command: dnf clean all
+
+# Create a kernel.service file to reboot the machine
+- name: Copy kernel.service to /etc/systemd/system
+  copy:
+    src: kernel.service
+    dest: /etc/systemd/system/kernel.service
+
+# Copy a modified sshd_config file to /etc/ssh/sshd_config
+#- name: Copy sshd_config to /etc/ssh/sshd_config
+#  copy:
+#    src: sshd_config
+#    dest: /etc/ssh/sshd_config
+
+# Copy logo.txt to /etc/motd.d/logo.txt
+- name: Copy logo.txt to /etc/motd.d/logo.txt
+  copy:
+    src: logo.txt
+    dest: /etc/motd.d/logo.txt
+
+# Reload systemd to apply the changes
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+# Enable the kernel.service on the next boot
+- name: Enable kernel.service
+  ansible.builtin.systemd:
+    name: kernel.service
+    enabled: yes
+
+# Reboot the machine
+- name: Reboot the machine
+  ansible.builtin.command:
+    cmd: reboot

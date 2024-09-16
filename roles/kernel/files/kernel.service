@@ -1,0 +1,11 @@
+[Unit]
+Description=Run a command once after reboot
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'ansible-playbook -i /root/inventory /root/master.yml --tags init'
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+

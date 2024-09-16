@@ -1,0 +1,27 @@
+- name: Create an user
+  user:
+    name: "{{ name }}"
+    group: "{{ group }}"
+    home: "/terabit-dev/{{ name }}"
+    createhome: yes
+    password: "*"
+    shell: /bin/bash
+    comment: "{{ comment }}"
+    state: present
+
+- name: Create .ssh directory
+  file:
+    path: "/terabit-dev/{{ name }}/.ssh"
+    state: directory
+
+- name: Create .ssh/authorized_keys file
+  file:
+    path: "/terabit-dev/{{ name }}/.ssh/authorized_keys"
+    owner: root
+    state: touch
+
+- name: Add SSH key if provided
+  lineinfile:
+    line: "{{ key }}"
+    path: "/terabit-dev/{{ name }}/.ssh/authorized_keys"
+  when: key is defined

@@ -1,0 +1,196 @@
+# file: roles/init/tasks/main.yml
+
+# Disable the SSH daemon (sshd)
+#- name: Disable SSH daemon (sshd)
+#  ansible.builtin.systemd:
+#    name: sshd
+#    enabled: no
+#    state: stopped
+
+# Install Development Tools
+- name: Install Development Tools
+  ansible.builtin.command:
+    cmd: dnf groupinstall -y "Development Tools"
+
+# tar make automake gcc gcc-c++ elfutils-libelf-devel libglvnd-opengl libglvnd-glx libglvnd-devel acpid pkgconfig
+
+# Install some additional packages
+- name: Install a list of packages
+  dnf:
+    name: "{{ packages }}"
+    state: present
+  vars:
+    packages:
+      - bc
+      - bzip2
+      - bzip2-devel
+      - curl
+      - dkms
+      - epel-release
+      - gdbm
+      - gdbm-devel
+      - git
+      - kernel-headers
+      - kernel-devel
+      - libffi
+      - libffi-devel
+      - lua
+      - lua-devel
+      - openssl
+      - openssl-devel
+      - pciutils
+      - readline-devel
+      - sqlite
+      - sqlite-devel
+      - tcl
+      - tcl-devel
+      - tree
+      - uuid
+      - uuid-devel
+      - vim
+      - wget
+      - xdg-utils
+      - xz
+      - xz-devel
+      - zlib
+      - zlib-devel
+
+# Clean up DNF cache
+- name: Clean up DNF cache
+  ansible.builtin.command: dnf clean all
+
+# Get Linux architecture
+- name: Get Linux architecture
+  ansible.builtin.shell: uname -i
+  register: kernel_arch
+  changed_when: false
+
+# Enable NVIDIA repository
+- name: Enable NVIDIA repository
+  ansible.builtin.command:
+    cmd: dnf config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel9/{{ kernel_arch.stdout }}/cuda-rhel9.repo
+
+# Create a new partition on /dev/vdb (INSTALLER)
+- name: Create a new partition on /dev/vdb
+  parted:
+    device: /dev/vdb
+    number: 1
+    label: msdos
+    state: present
+    part_type: primary
+    unit: MiB
+
+# Create a new filesystem on /dev/vdb1 (INSTALLER)
+- name: Create a new filesystem on /dev/vdb1
+  filesystem:
+    fstype: ext4
+    dev: /dev/vdb1
+
+# Mount the new filesystem (INSTALLER)
+- name: Mount the new filesystem
+  mount:
+    path: /opt
+    src: /dev/vdb1
+    fstype: ext4
+    state: mounted
+
+# Create a new partition on /dev/vdc (TERABIT)
+- name: Create a new partition on /dev/vdc
+  parted:
+    device: /dev/vdc
+    number: 1
+    label: msdos
+    state: present
+    part_type: primary
+    unit: MiB
+
+# Create a new filesystem on /dev/vdc1 (TERABIT)
+- name: Create a new filesystem on /dev/vdc1
+  filesystem:
+    fstype: ext4
+    dev: /dev/vdc1
+
+# Mount the new filesystem (TERABIT)
+- name: Mount the new filesystem
+  mount:
+    path: /terabit-dev
+    src: /dev/vdc1
+    fstype: ext4
+    state: mounted
+
+# Create INSTALLER user
+- name: Create INSTALLER user
+  user:
+    name: install
+    password: "*"
+    comment: INSTALLER
+    state: present
+    shell: /bin/bash
+    createhome: yes
+    home: /opt/install
+
+# Create OGS user group
+- name: Create OGS (CRS) user group
+  group:
+    name: ogs
+    state: present
+
+# Add INSTALLER user to OGS user group
+- name: Ensure /opt folder ownership is set to install user
+  ansible.builtin.file:
+    path: /opt
+    owner: install
+    group: install
+    recurse: yes
+
+# Ensure /opt folder ownership is set to install user
+- name: Ensure opt folders exists
+  become: yes
+  become_user: install
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/apps
+    - /opt/apps/modulefiles
+    - /opt/data
+    - /opt/data/modulefiles
+    - /opt/base
+    - /opt/base/modulefiles
+    - /opt/libs
+    - /opt/libs/modulefiles
+    - /opt/tools
+    - /opt/tools/intel
+    - /opt/tools/nvhpc
+    - /opt/tools/python
+    - /opt/tools/modulefiles
+    - /opt/tools/modulefiles/python
+    - /opt/tools/modulefiles/nvhpc
+    - /opt/tools/modulefiles/intel
+    - /opt/tools/modulefiles/cuda
+    - /opt/install
+    - /opt/install/nvidia
+    - /opt/install/nvidia/hpc_sdk
+
+# Install third-party software for NVIDIA driver
+- name: Install third-party software for NVIDIA driver
+  ansible.builtin.command:
+    cmd: dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+
+# Install NVIDIA driver
+- name: Install NVIDIA driver
+  ansible.builtin.command:
+    cmd: dnf module install -y nvidia-driver:550
+
+# Install CUDA Toolkit
+- name: Install CUDA Toolkit
+  ansible.builtin.command:
+    cmd: dnf install -y cuda-toolkit
+
+# Enable SSH daemon (sshd)
+- name: Enable SSH daemon (sshd)
+  ansible.builtin.systemd:
+    name: sshd
+    enabled: yes
+    state: started

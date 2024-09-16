@@ -1,0 +1,1 @@
+contains templates which can be deployed via this role.

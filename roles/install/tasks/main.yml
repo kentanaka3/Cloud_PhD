@@ -1,0 +1,182 @@
+# file: roles/install/tasks/main.yml
+
+# Disable the kernel.service
+- name: Disable kernel.service
+  ansible.builtin.systemd:
+    name: kernel.service
+    enabled: no
+    state: stopped
+  ignore_errors: True
+
+# Reload systemd to apply the changes
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+# Remove the kernel.service file
+- name: Remove kernel.service file
+  ansible.builtin.file:
+    path: /etc/systemd/system/kernel.service
+    state: absent
+
+# Download and extraction of module files
+- name: Download the latest Modules file from SourceForge
+  become: yes
+  become_user: install
+  ansible.builtin.get_url:
+    url: https://github.com/TACC/Lmod/archive/refs/tags/8.7.37.tar.gz
+    dest: /opt/install/lmod.tar.gz
+    mode: '0644'
+
+- name: Extract the downloaded Modules file
+  become: yes
+  become_user: install
+  ansible.builtin.unarchive:
+    src: /opt/install/lmod.tar.gz
+    dest: /opt/install/
+    remote_src: yes
+
+- name: Get Lmod version
+  ansible.builtin.shell: |
+    basename $(ls -d /opt/install/Lmod-*/ | head -n 1) | sed 's/Lmod-//'
+  register: lmod_version
+  changed_when: false
+
+- name: Configure the Lmod software
+  become: yes
+  become_user: install
+  ansible.builtin.shell: |
+    ./configure --prefix=/opt/apps
+    make pre-install
+    make install
+  args:
+    chdir: "/opt/install/Lmod-{{ lmod_version.stdout }}"
+
+- name: Create modules.sh file
+  ansible.builtin.lineinfile:
+    path: /etc/profile.d/modules.sh
+    create: yes
+    line: 'export MODULEPATH=/opt/tools/modulefiles:/opt/apps/modulefiles:/opt/libs/modulefiles:/opt/data/modulefiles:/opt/base/modulefiles'
+    state: present
+    mode: '0755'
+
+- name: Create symbolic link for module support in bash
+  ansible.builtin.file:
+    src: /opt/apps/lmod/lmod/init/profile
+    dest: /etc/profile.d/z00_lmod.sh
+    state: link
+    force: yes
+
+- name: Create symbolic link for module support in csh
+  ansible.builtin.file:
+    src: /opt/apps/lmod/lmod/init/cshrc
+    dest: /etc/profile.d/z00_lmod.csh
+    state: link
+    force: yes
+
+- name: Download pyenv
+  become: yes
+  become_user: install
+  git:
+    repo: https://github.com/pyenv/pyenv.git
+    dest: ~/python
+    update: yes
+
+- name: Configure pyenv
+  become: yes
+  become_user: install
+  ansible.builtin.command:
+    cmd: src/configure
+  args:
+    chdir: ~/python
+
+- name: Install pyenv
+  become: yes
+  become_user: install
+  ansible.builtin.command:
+    cmd: make -j 48 -C src
+  args:
+    chdir: ~/python
+
+- name: Add PYENV_ROOT to bashrc
+  become: yes
+  become_user: install
+  ansible.builtin.lineinfile:
+    path: ~/.bashrc
+    line: 'export PYENV_ROOT="$HOME/python"'
+    state: present
+    mode: '0755'
+
+- name: Add pyenv to PATH in bashrc
+  become: yes
+  become_user: install
+  ansible.builtin.lineinfile:
+    path: ~/.bashrc
+    line: 'export PATH="$PYENV_ROOT/bin:$PATH"'
+    state: present
+    mode: '0755'
+
+- name: Source ./bashrc and Install Python 3.12.4
+  become: yes
+  become_user: install
+  ansible.builtin.shell: |
+    source ~/.bashrc
+    pyenv install 3.12.4
+  args:
+    executable: /bin/bash
+  ignore_errors: True
+
+- name: Copy 3.12.4.lua to /opt/tools/modulefiles/python
+  become: yes
+  become_user: install
+  copy:
+    src: python-3.12.4.lua
+    dest: /opt/tools/modulefiles/python/3.12.4.lua
+
+# Download and extraction of NVIDIA HPC SDK
+- name: Download NVIDIA HPC SDK
+  become: yes
+  become_user: install
+  get_url:
+    url: "https://developer.download.nvidia.com/hpc-sdk/24.7/nvhpc_2024_247_Linux_x86_64_cuda_12.5.tar.gz"
+    dest: "/opt/install/nvhpc.tar.gz"
+    mode: '0644'
+
+- name: Extract NVIDIA HPC SDK
+  become: yes
+  become_user: install
+  ansible.builtin.unarchive:
+    src: "/opt/install/nvhpc.tar.gz"
+    dest: "/opt/install/nvidia/hpc_sdk/"
+    remote_src: yes
+
+- name: Install NVIDIA HPC SDK
+  become: yes
+  become_user: install
+  ansible.builtin.command: "./install"
+  args:
+    chdir: "/opt/install/nvidia/hpc_sdk/nvhpc_2024_247_Linux_x86_64_cuda_12.5"
+
+- name: Create module file for NVIDIA HPC SDK
+  become: yes
+  become_user: install
+  copy:
+    src: nvhpc-12.5.lua
+    dest: /opt/tools/nvhpc/12.5.lua
+
+- name: Create module file for CUDA 12.6
+  become: yes
+  become_user: install
+  copy:
+    src: cuda-12.6.lua
+    dest: /opt/tools/modulefiles/cuda/12.6.lua
+
+# Download and extraction of Intel oneAPI Base Toolkit
+
+- name: Download Intel oneAPI Base Toolkit
+  become: yes
+  become_user: install
+  ansible.builtin.get_url:
+    url: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/9a98af19-1c68-46ce-9fdd-e249240c7c42/l_BaseKit_p_2024.2.0.634_offline.sh
+    dest: /opt/install/intel_oneAPI_base.sh
+    mode: '0644'
