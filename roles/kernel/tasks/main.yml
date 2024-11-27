@@ -31,11 +31,37 @@
 #    src: sshd_config
 #    dest: /etc/ssh/sshd_config
 
+# Enable SSH daemon (sshd)
+- name: Enable SSH daemon (sshd)
+  ansible.builtin.systemd:
+    name: sshd
+    enabled: yes
+    state: restarted
+
 # Copy logo.txt to /etc/motd.d/logo.txt
 - name: Copy logo.txt to /etc/motd.d/logo.txt
   copy:
     src: logo.txt
     dest: /etc/motd.d/logo.txt
+
+# Create user groups
+- name: Create user groups
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    gid: "{{ item.gid }}"
+    state: present
+  loop:
+    - { name : "install", gid : 1001 }
+    - { name : "ogs", gid : 1002 }
+    - { name : "docker", gid : 1003 }
+
+- name: Create modules.sh file
+  ansible.builtin.lineinfile:
+    path: /etc/profile.d/modules.sh
+    create: yes
+    line: 'export MODULEPATH=/opt/tools/modulefiles:/opt/apps/modulefiles:/opt/libs/modulefiles:/opt/data/modulefiles:/opt/base/modulefiles'
+    state: present
+    mode: '0755'
 
 # Reload systemd to apply the changes
 - name: Reload systemd

@@ -1,49 +1,109 @@
 # file: roles/install/tasks/main.yml
 
-# Disable the kernel.service
-- name: Disable kernel.service
-  ansible.builtin.systemd:
-    name: kernel.service
-    enabled: no
-    state: stopped
-  ignore_errors: True
+# Install Docker and Kubernetes tools
+- name: Install Docker and Kubernetes tools
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - docker-compose-plugin
+    - docker-ce
+    - docker-ce-cli
+    - docker-buildx-plugin
+    - kubeadm
+    - kubectl
+    - kubelet
+    - containerd.io
 
 # Reload systemd to apply the changes
 - name: Reload systemd
   ansible.builtin.systemd:
-    daemon_reload: yes
+    daemon_reload: true
 
-# Remove the kernel.service file
-- name: Remove kernel.service file
+# Enable and start Docker and Kubernetes services
+- name: Enable and start Docker and Kubernetes services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - docker
+    - kubelet
+
+# Create INSTALLER user
+- name: Create INSTALLER user
+  ansible.builtin.user:
+    name: install
+    comment: "INSTALLER"
+    uid: 1001
+    group: install
+    groups: install
+    shell: /bin/bash
+    home: /opt/install
+    createhome: true
+    state: present
+    password: "*"
+
+# Ensure INSTALLER directories are created
+- name: Ensure INSTALLER directories are created
   ansible.builtin.file:
-    path: /etc/systemd/system/kernel.service
-    state: absent
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: install
+    group: install
+  loop:
+    - /opt
+    - /opt/apps
+    - /opt/apps/lmod
+    - /opt/apps/modulefiles
+    - /opt/data
+    - /opt/data/modulefiles
+    - /opt/base
+    - /opt/base/modulefiles
+    - /opt/libs
+    - /opt/libs/modulefiles
+    - /opt/tools
+    - /opt/tools/modulefiles
+    - /opt/tools/modulefiles/python
+    - /opt/tools/modulefiles/nvhpc
+    - /opt/tools/modulefiles/intel
+    - /opt/tools/modulefiles/cuda
+    - /opt/tools/modulefiles/go
+    - /opt/install
+    - /opt/install/go
+    - /opt/install/intel
+    - /opt/install/nvidia
+    - /opt/install/nvidia/hpc_sdk
 
-# Download and extraction of module files
+# Lmod 8.7.37
 - name: Download the latest Modules file from SourceForge
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.get_url:
     url: https://github.com/TACC/Lmod/archive/refs/tags/8.7.37.tar.gz
     dest: /opt/install/lmod.tar.gz
     mode: '0644'
 
+# Lmod 8.7.37
 - name: Extract the downloaded Modules file
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.unarchive:
     src: /opt/install/lmod.tar.gz
     dest: /opt/install/
-    remote_src: yes
+    remote_src: true
 
+# Lmod 8.7.37
 - name: Get Lmod version
   ansible.builtin.shell: |
     basename $(ls -d /opt/install/Lmod-*/ | head -n 1) | sed 's/Lmod-//'
   register: lmod_version
   changed_when: false
 
+# Lmod 8.7.37
 - name: Configure the Lmod software
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.shell: |
     ./configure --prefix=/opt/apps
@@ -52,54 +112,84 @@
   args:
     chdir: "/opt/install/Lmod-{{ lmod_version.stdout }}"
 
-- name: Create modules.sh file
-  ansible.builtin.lineinfile:
-    path: /etc/profile.d/modules.sh
-    create: yes
-    line: 'export MODULEPATH=/opt/tools/modulefiles:/opt/apps/modulefiles:/opt/libs/modulefiles:/opt/data/modulefiles:/opt/base/modulefiles'
-    state: present
-    mode: '0755'
-
+# Lmod 8.7.37
 - name: Create symbolic link for module support in bash
   ansible.builtin.file:
     src: /opt/apps/lmod/lmod/init/profile
     dest: /etc/profile.d/z00_lmod.sh
     state: link
-    force: yes
+    force: true
 
+# Lmod 8.7.37
 - name: Create symbolic link for module support in csh
   ansible.builtin.file:
     src: /opt/apps/lmod/lmod/init/cshrc
     dest: /etc/profile.d/z00_lmod.csh
     state: link
-    force: yes
+    force: true
 
-- name: Download pyenv
-  become: yes
+# Lmod 8.7.37
+- name: Remove Lmod tarball
+  become: true
   become_user: install
-  git:
-    repo: https://github.com/pyenv/pyenv.git
-    dest: ~/python
-    update: yes
+  ansible.builtin.file:
+    path: /opt/install/lmod.tar.gz
+    state: absent
 
+# CUDA 12.6
+- name: Create module file for CUDA 12.6
+  become: true
+  become_user: install
+  copy:
+    src: cuda-12.6.lua
+    dest: /opt/tools/modulefiles/cuda/12.6.lua
+
+# Python 3.12.4
+- name: Download pyenv
+  become: true
+  become_user: install
+  ansible.builtin.get_url:
+    url: https://github.com/pyenv/pyenv/archive/refs/heads/master.zip
+    dest: /opt/install/pyenv.zip
+    mode: '0644'
+
+# Python 3.12.4
+- name: Extract pyenv
+  become: true
+  become_user: install
+  ansible.builtin.unarchive:
+    src: /opt/install/pyenv.zip
+    dest: /opt/install
+    remote_src: true
+
+# Python 3.12.4
+- name: Move pyenv
+  become: true
+  become_user: install
+  ansible.builtin.command:
+    cmd: mv /opt/install/pyenv-master /opt/install/python
+
+# Python 3.12.4
 - name: Configure pyenv
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.command:
     cmd: src/configure
   args:
     chdir: ~/python
 
+# Python 3.12.4
 - name: Install pyenv
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.command:
     cmd: make -j 48 -C src
   args:
     chdir: ~/python
 
+# Python 3.12.4
 - name: Add PYENV_ROOT to bashrc
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.lineinfile:
     path: ~/.bashrc
@@ -107,8 +197,9 @@
     state: present
     mode: '0755'
 
+# Python 3.12.4
 - name: Add pyenv to PATH in bashrc
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.lineinfile:
     path: ~/.bashrc
@@ -116,8 +207,9 @@
     state: present
     mode: '0755'
 
+# Python 3.12.4
 - name: Source ./bashrc and Install Python 3.12.4
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.shell: |
     source ~/.bashrc
@@ -126,57 +218,165 @@
     executable: /bin/bash
   ignore_errors: True
 
+# Python 3.12.4
 - name: Copy 3.12.4.lua to /opt/tools/modulefiles/python
-  become: yes
+  become: true
   become_user: install
   copy:
     src: python-3.12.4.lua
     dest: /opt/tools/modulefiles/python/3.12.4.lua
 
-# Download and extraction of NVIDIA HPC SDK
+# Python 3.12.4
+- name: Remove pyenv zip
+  become: true
+  become_user: install
+  ansible.builtin.file:
+    path: /opt/install/pyenv.zip
+    state: absent
+
+# Go 1.23.3
+- name: Set Go variables
+  become: true
+  become_user: install
+  set_fact:
+    version: "1.23.3"
+    os: "linux"
+    arch: "amd64"
+
+# Go 1.23.3
+- name: Download Go binary
+  become: true
+  become_user: install
+  get_url:
+    url: "https://dl.google.com/go/go{{ version }}.{{ os }}-{{ arch }}.tar.gz"
+    dest: "/opt/install/go{{ version }}.{{ os }}-{{ arch }}.tar.gz"
+
+# Go 1.23.3
+- name: Extract Go binary
+  become: true
+  become_user: install
+  ansible.builtin.unarchive:
+    src: "/opt/install/go{{ version }}.{{ os }}-{{ arch }}.tar.gz"
+    dest: "/opt/install"
+    remote_src: yes
+
+# Go 1.23.3
+- name: Move Go
+  become: true
+  become_user: install
+  ansible.builtin.command:
+    cmd: mv /opt/install/go /opt/install/{{ version }}
+
+# Go 1.23.3
+- name: Create version directory for Go
+  become: true
+  become_user: install
+  ansible.builtin.file:
+    path: "/opt/install/go"
+    state: directory
+
+# Go 1.23.3
+- name: Move Go
+  become: true
+  become_user: install
+  ansible.builtin.command:
+    cmd: mv /opt/install/{{ version }} /opt/install/go
+
+# Go 1.23.3
+- name: Create module file for Go
+  become: true
+  become_user: install
+  copy:
+    src: go-1.23.3.lua
+    dest: /opt/tools/modulefiles/go/1.23.3.lua
+
+# Go 1.23.3
+- name: Remove the downloaded Go archive
+  become: true
+  become_user: install
+  file:
+    path: "/opt/install/go{{ version }}.{{ os }}-{{ arch }}.tar.gz"
+    state: absent
+
+# Go 1.23.3
+- name: Install Go dependencies
+  become: true
+  become_user: install
+  ansible.builtin.command:
+    cmd: go install github.com/golang/dep/cmd/dep@latest
+  ignore_errors: True
+
+# NVIDIA HPC SDK
 - name: Download NVIDIA HPC SDK
-  become: yes
+  become: true
   become_user: install
   get_url:
     url: "https://developer.download.nvidia.com/hpc-sdk/24.7/nvhpc_2024_247_Linux_x86_64_cuda_12.5.tar.gz"
     dest: "/opt/install/nvhpc.tar.gz"
     mode: '0644'
 
+# NVIDIA HPC SDK
 - name: Extract NVIDIA HPC SDK
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.unarchive:
     src: "/opt/install/nvhpc.tar.gz"
     dest: "/opt/install/nvidia/hpc_sdk/"
-    remote_src: yes
+    remote_src: true
 
-- name: Install NVIDIA HPC SDK
-  become: yes
+# NVIDIA HPC SDK
+- name: Set environment variables
+  become: true
   become_user: install
-  ansible.builtin.command: "./install"
+  ansible.builtin.shell: |
+    echo "export NVHPC_DIR=/opt/install/nvidia/hpc_sdk/" >> ~/.bashrc
+    echo "" >> ~/.bashrc
+    echo "export PATH=\$NVHPC_DIR/bin:\$PATH" >> ~/.bashrc
+    echo "export LD_LIBRARY_PATH=\$NVHPC_DIR/lib:\$LD_LIBRARY_PATH" >> ~/.bashrc
+    echo "export MANPATH=\$NVHPC_DIR"
+    source ~/.bashrc
+
+# NVIDIA HPC SDK
+- name: Install NVIDIA HPC SDK
+  become: true
+  become_user: install
+  ansible.builtin.command: 
+    cmd: "./install"
   args:
     chdir: "/opt/install/nvidia/hpc_sdk/nvhpc_2024_247_Linux_x86_64_cuda_12.5"
+  environment: 
+    NVHPC_SILENT: "true"
+    NVHPC_INSTALL_DIR: "/opt/install/nvidia/hpc_sdk"
+    NVHPC_INSTALL_TYPE: "auto"
+    NVHPC_ACCEPT_EULA: "accept"
 
-- name: Create module file for NVIDIA HPC SDK
-  become: yes
+# NVIDIA HPC SDK
+- name: Copy Modulefiles
+  become: true
   become_user: install
-  copy:
-    src: nvhpc-12.5.lua
-    dest: /opt/tools/nvhpc/12.5.lua
+  ansible.builtin.command:
+    cmd: cp -r /opt/install/nvidia/hpc_sdk/modulefiles/* /opt/tools/modulefiles/
 
-- name: Create module file for CUDA 12.6
-  become: yes
+# NVIDIA HPC SDK
+- name: Remove NVIDIA HPC SDK tarball
+  become: true
   become_user: install
-  copy:
-    src: cuda-12.6.lua
-    dest: /opt/tools/modulefiles/cuda/12.6.lua
+  ansible.builtin.file:
+    path: /opt/install/nvhpc.tar.gz
+    state: absent
 
-# Download and extraction of Intel oneAPI Base Toolkit
-
+# Intel oneAPI Base Toolkit
 - name: Download Intel oneAPI Base Toolkit
-  become: yes
+  become: true
   become_user: install
   ansible.builtin.get_url:
     url: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/9a98af19-1c68-46ce-9fdd-e249240c7c42/l_BaseKit_p_2024.2.0.634_offline.sh
     dest: /opt/install/intel_oneAPI_base.sh
     mode: '0644'
+
+# Intel oneAPI Base Toolkit
+- name: Install Intel oneAPI Base Toolkit
+  become: true
+  become_user: install
+  ansible.builtin.command: "bash /opt/install/intel_oneAPI_base.sh -a --silent --eula accept --install-dir=/opt/install/intel"
+  ignore_errors: true

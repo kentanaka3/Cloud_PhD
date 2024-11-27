@@ -17,29 +17,6 @@ git clone
 Install epel-release [dnf install -y epel-release]
 Install ansible [dnf install -y ansible]
 CMD: ansible-playbook -i inventory master.yml --tags kernel -v
-# Consider Python install use pyenv
+CMD: ansible-playbook -i inventory master.yml --tags install -v
 CMD: ansible-playbook -i inventory master.yml --tags addUser --extra-vars "@user.json"
-CMD: install$ git clone https://github.com/pyenv/pyenv.git ~/python cd ~/python && src/configure && make -C src
 CMD: install$ pip install --upgrade pip
-
-
-
-ansible-playbook -i inventory master.yml --tags init
-   23  nvidia-smi
-   24  sudo - install nvidia-driver-local-repo-rhel9-560.35.03-1.0-1.x86_64.rpm 
-   25  sudo rpm -i  nvidia-driver-local-repo-rhel9-560.35.03-1.0-1.x86_64.rpm 
-   26  nvcc --version
-   27  gcc --version
-   28  wget https://uk.download.nvidia.com/tesla/515.105.01/nvidia-driver-local-repo-rhel9-515.105.01-1.0-1.x86_64.rpm
-   29  yum install nvidia-driver-local-repo-rhel9-515.105.01-1.0-1.x86_64.rpm 
-   30  uname -i
-   31  uname -r
-   32   dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
-   33  dnf install kernel-devel-$(uname -r) kernel-headers-$(uname -r)
-   34  dnf install nvidia-driver nvidia-settings
-   35  dnf install kernel-devel kernel-headers
-   36  uname -r
-   37  dnf install nvidia-driver nvidia-settings
-   38  nvidia-smi
-   39  dnf install cuda-driver
-   40  lshw

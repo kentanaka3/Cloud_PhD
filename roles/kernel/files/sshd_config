@@ -129,4 +129,4 @@ Subsystem	sftp	/usr/libexec/openssh/sftp-server
 #	PermitTTY no
 #	ForceCommand cvs server
 
-AllowGroups rocky install ogs
+AllowGroups root rocky install ogs

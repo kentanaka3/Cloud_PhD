@@ -1,11 +1,11 @@
 # file: roles/init/tasks/main.yml
 
 # Disable the SSH daemon (sshd)
-#- name: Disable SSH daemon (sshd)
-#  ansible.builtin.systemd:
-#    name: sshd
-#    enabled: no
-#    state: stopped
+- name: Disable SSH daemon (sshd)
+  ansible.builtin.systemd:
+    name: sshd
+    enabled: no
+    state: stopped
 
 # Install Development Tools
 - name: Install Development Tools
@@ -26,6 +26,7 @@
       - bzip2-devel
       - curl
       - dkms
+      - dnf-plugins-core
       - epel-release
       - gdbm
       - gdbm-devel
@@ -34,6 +35,8 @@
       - kernel-devel
       - libffi
       - libffi-devel
+      - libseccomp-devel
+      - libuuid-devel
       - lua
       - lua-devel
       - openssl
@@ -42,6 +45,7 @@
       - readline-devel
       - sqlite
       - sqlite-devel
+      - squashfs-tools
       - tcl
       - tcl-devel
       - tree
@@ -118,61 +122,6 @@
     fstype: ext4
     state: mounted
 
-# Create INSTALLER user
-- name: Create INSTALLER user
-  user:
-    name: install
-    password: "*"
-    comment: INSTALLER
-    state: present
-    shell: /bin/bash
-    createhome: yes
-    home: /opt/install
-
-# Create OGS user group
-- name: Create OGS (CRS) user group
-  group:
-    name: ogs
-    state: present
-
-# Add INSTALLER user to OGS user group
-- name: Ensure /opt folder ownership is set to install user
-  ansible.builtin.file:
-    path: /opt
-    owner: install
-    group: install
-    recurse: yes
-
-# Ensure /opt folder ownership is set to install user
-- name: Ensure opt folders exists
-  become: yes
-  become_user: install
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-    mode: '0755'
-  loop:
-    - /opt/apps
-    - /opt/apps/modulefiles
-    - /opt/data
-    - /opt/data/modulefiles
-    - /opt/base
-    - /opt/base/modulefiles
-    - /opt/libs
-    - /opt/libs/modulefiles
-    - /opt/tools
-    - /opt/tools/intel
-    - /opt/tools/nvhpc
-    - /opt/tools/python
-    - /opt/tools/modulefiles
-    - /opt/tools/modulefiles/python
-    - /opt/tools/modulefiles/nvhpc
-    - /opt/tools/modulefiles/intel
-    - /opt/tools/modulefiles/cuda
-    - /opt/install
-    - /opt/install/nvidia
-    - /opt/install/nvidia/hpc_sdk
-
 # Install third-party software for NVIDIA driver
 - name: Install third-party software for NVIDIA driver
   ansible.builtin.command:
@@ -188,9 +137,31 @@
   ansible.builtin.command:
     cmd: dnf install -y cuda-toolkit
 
+# Add Kubernetes repository
+- name: Add Kubernetes repository
+  copy:
+    src: kubernetes.repo
+    dest: /etc/yum.repos.d/kubernetes.repo
+
+# Add Docker repository
+- name: Add Docker repository
+  ansible.builtin.command:
+    cmd: dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
 # Enable SSH daemon (sshd)
 - name: Enable SSH daemon (sshd)
   ansible.builtin.systemd:
     name: sshd
     enabled: yes
     state: started
+
+# Remove the kernel.service file
+- name: Remove the kernel.service file
+  ansible.builtin.file:
+    path: /etc/systemd/system/kernel.service
+    state: absent
+
+# Reboot the machine
+- name: Reboot the machine
+  ansible.builtin.command:
+    cmd: reboot
